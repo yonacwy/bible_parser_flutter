@@ -1,16 +1,10 @@
-import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:bible_parser_flutter/bible_parser_flutter.dart';
-import 'package:xml/xml_events.dart';
+import 'dart:math' as math;
 
 /// Enum for Bible formats supported by the app
-enum BibleFormat {
-  osis,
-  usfx,
-  zxbml
-}
+enum BibleFormat { osis, usfx, zxbml }
 
 void main() {
   runApp(const BibleParserExampleApp());
@@ -36,7 +30,8 @@ class BibleParserExampleScreen extends StatefulWidget {
   const BibleParserExampleScreen({super.key});
 
   @override
-  State<BibleParserExampleScreen> createState() => _BibleParserExampleScreenState();
+  State<BibleParserExampleScreen> createState() =>
+      _BibleParserExampleScreenState();
 }
 
 class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
@@ -45,7 +40,8 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
   bool isLoading = false;
   String result = '';
   BibleRepository? repository;
-  
+  bool isFullBible = false;
+
   // For verse viewing feature
   List<Book> books = [];
   Book? selectedBook;
@@ -64,122 +60,146 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Format selection
-            Text('Select Bible Format:', style: Theme.of(context).textTheme.titleMedium),
-            Row(
-              children: [
-                Radio<BibleFormat>(
-                  value: BibleFormat.osis,
-                  groupValue: currentFormat,
-                  onChanged: (BibleFormat? value) {
-                    setState(() {
-                      currentFormat = value!;
-                      xmlPath = 'assets/bible_small.xml';
-                      result = 'Selected OSIS format';
-                    });
-                  },
-                ),
-                const Text('OSIS'),
-                const SizedBox(width: 20),
-                Radio<BibleFormat>(
-                  value: BibleFormat.usfx,
-                  groupValue: currentFormat,
-                  onChanged: (BibleFormat? value) {
-                    setState(() {
-                      currentFormat = value!;
-                      xmlPath = 'assets/bible_small_usfx.xml';
-                      result = 'Selected USFX format';
-                    });
-                  },
-                ),
-                const Text('USFX'),
-                const SizedBox(width: 20),
-                Radio<BibleFormat>(
-                  value: BibleFormat.zxbml,
-                  groupValue: currentFormat,
-                  onChanged: (BibleFormat? value) {
-                    setState(() {
-                      currentFormat = value!;
-                      xmlPath = 'assets/bible_small_zxbml.xml';
-                      result = 'Selected ZXBML format';
-                    });
-                  },
-                ),
-                const Text('ZXBML'),
-              ],
+            Text('Select Bible Format:',
+                style: Theme.of(context).textTheme.titleMedium),
+                  Row(
+                    children: [
+                      Radio<BibleFormat>(
+                        value: BibleFormat.osis,
+                        groupValue: currentFormat,
+                        onChanged: (BibleFormat? value) {
+                          setState(() {
+                            currentFormat = value!;
+                            xmlPath = 'assets/bible_small.xml';
+                            result = 'Selected OSIS format';
+                          });
+                        },
+                      ),
+                      const Text('OSIS'),
+                  const SizedBox(width: 20),
+                      Radio<BibleFormat>(
+                        value: BibleFormat.usfx,
+                        groupValue: currentFormat,
+                        onChanged: (BibleFormat? value) {
+                          setState(() {
+                            currentFormat = value!;
+                            xmlPath = 'assets/bible_small_usfx.xml';
+                            result = 'Selected USFX format';
+                          });
+                        },
+                      ),
+                      const Text('USFX'),
+                  const SizedBox(width: 20),
+                      Radio<BibleFormat>(
+                        value: BibleFormat.zxbml,
+                        groupValue: currentFormat,
+                        onChanged: (BibleFormat? value) {
+                          setState(() {
+                            currentFormat = value!;
+                            xmlPath = 'assets/bible_small_zxbml.xml';
+                            result = 'Selected ZXBML format';
+                          });
+                        },
+                      ),
+                      const Text('ZXBML'),
+                    ],
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _parseDirectly,
-              child: const Text('Parse Directly'),
-            ),
+                ElevatedButton(
+                  onPressed: _parseDirectly,
+                  child: const Text('Parse Directly'),
+                ),
             const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: _initializeDatabase,
-              child: const Text('Initialize Database'),
-            ),
+                ElevatedButton(
+                  onPressed: isLoading ? null : _initializeDatabase,
+                  child: const Text('Initialize Database (Small)'),
+                ),
+            const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: isLoading ? null : _initializeKjvSample,
+                  child: const Text('Initialize KJV Sample'),
+                ),
+            const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: isLoading ? null : _initializeFullBible,
+                  child: const Text('Initialize Full KJV Bible'),
+                ),
             const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: repository != null ? _searchVerses : null,
-              child: const Text('Search for "love"'),
-            ),
+                ElevatedButton(
+                  onPressed: repository != null ? _searchVerses : null,
+                  child: const Text('Search for "love"'),
+                ),
             const SizedBox(height: 20),
-            
+
             // Book and Chapter selection
-            if (repository != null) ...[  
-              Text('View Verses by Book and Chapter:', style: Theme.of(context).textTheme.titleMedium),
+            if (repository != null) ...[
+              Text('View Verses by Book and Chapter:',
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 10),
-              Row(
+              // Use Column instead of Row for better layout with long book titles
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Book dropdown
-                  Expanded(
-                    child: DropdownButtonFormField<Book>(
-                      decoration: const InputDecoration(
-                        labelText: 'Select Book',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: selectedBook,
-                      items: books.map((book) {
-                        return DropdownMenuItem<Book>(
-                          value: book,
-                          child: Text('${book.num}. ${book.title}'),
-                        );
-                      }).toList(),
-                      onChanged: (Book? book) {
-                        setState(() {
-                          selectedBook = book;
-                          selectedChapter = null;
-                          _updateAvailableChapters();
-                        });
-                      },
+                  DropdownButtonFormField<Book>(
+                    isExpanded: true, // Ensure dropdown expands to full width
+                    decoration: const InputDecoration(
+                      labelText: 'Select Book',
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     ),
+                    value: selectedBook,
+                    items: books.map((book) {
+                      return DropdownMenuItem<Book>(
+                        value: book,
+                        child: Text(
+                          '${book.num}. ${book.title}',
+                          overflow: TextOverflow
+                              .ellipsis, // Handle text overflow gracefully
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (Book? book) {
+                      setState(() {
+                        selectedBook = book;
+                        selectedChapter = null;
+                        _updateAvailableChapters();
+                      });
+                    },
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(height: 16),
                   // Chapter dropdown
-                  Expanded(
-                    child: DropdownButtonFormField<int>(
-                      decoration: const InputDecoration(
-                        labelText: 'Select Chapter',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: selectedChapter,
-                      items: availableChapters.map((chapter) {
-                        return DropdownMenuItem<int>(
-                          value: chapter,
-                          child: Text('Chapter $chapter'),
-                        );
-                      }).toList(),
-                      onChanged: selectedBook == null ? null : (int? chapter) {
-                        setState(() {
-                          selectedChapter = chapter;
-                        });
-                      },
+                  DropdownButtonFormField<int>(
+                    isExpanded: true, // Ensure dropdown expands to full width
+                    decoration: const InputDecoration(
+                      labelText: 'Select Chapter',
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     ),
+                    value: selectedChapter,
+                    items: availableChapters.map((chapter) {
+                      return DropdownMenuItem<int>(
+                        value: chapter,
+                        child: Text('Chapter $chapter'),
+                      );
+                    }).toList(),
+                    onChanged: selectedBook == null
+                        ? null
+                        : (int? chapter) {
+                            setState(() {
+                              selectedChapter = chapter;
+                            });
+                          },
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               ElevatedButton(
-                onPressed: (selectedBook != null && selectedChapter != null) ? _loadVerses : null,
+                onPressed: (selectedBook != null && selectedChapter != null)
+                    ? _loadVerses
+                    : null,
                 child: const Text('Load Verses'),
               ),
             ],
@@ -206,7 +226,7 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
           ],
         ),
       ),
-    );
+        );
   }
 
   // Test the original parser with our fix
@@ -215,36 +235,38 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
       isLoading = true;
       result = 'Testing parser...';
     });
-    
+
     try {
       // Load the XML content from assets
-      final xmlString = await DefaultAssetBundle.of(context).loadString(xmlPath);
-      
+      final xmlString =
+          await DefaultAssetBundle.of(context).loadString(xmlPath);
+
       // Create the original parser with the XML string
-      final parser = BibleParser.fromString(xmlString, format: currentFormat.name.toUpperCase());
-      
+      final parser = BibleParser.fromString(xmlString,
+          format: currentFormat.name.toUpperCase());
+
       // Set up a timeout
       bool timedOut = false;
       final timeout = Timer(Duration(seconds: 30), () {
-        print('Parsing timed out after 30 seconds');
+        // Parsing timed out
         timedOut = true;
         if (!mounted) return;
         setState(() {
-          result += '\n\nParsing timed out after 30 seconds. There may be an issue with the parser.';
+          result +=
+              '\n\nParsing timed out after 30 seconds. There may be an issue with the parser.';
           isLoading = false;
         });
       });
-      
+
       // Collect verses from the parser
       final verses = <Verse>[];
       int count = 0;
-      bool receivedFirstVerse = false;
-      
+
       final subscription = parser.verses.listen(
         (verse) {
           verses.add(verse);
           count++;
-          
+
           if (count % 5 == 0 && mounted) {
             setState(() {
               result = 'Parsing...\n\nParsed ${verses.length} verses so far';
@@ -254,12 +276,12 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
         onError: (e) {},
         onDone: () {},
       );
-      
+
       // Wait for parsing to complete or timeout
       await Future.delayed(Duration(seconds: 20));
       subscription.cancel();
       timeout.cancel();
-      
+
       if (!timedOut && mounted) {
         if (verses.isEmpty) {
           setState(() {
@@ -269,13 +291,15 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
         } else {
           setState(() {
             result = 'Parser Results (${verses.length} verses):\n\n' +
-                verses.map((v) => '${v.bookId} ${v.chapterNum}:${v.num} - ${v.text}').join('\n\n');
+                verses
+                    .map((v) =>
+                        '${v.bookId} ${v.chapterNum}:${v.num} - ${v.text}')
+                    .join('\n\n');
             isLoading = false;
           });
         }
       }
     } catch (e, stackTrace) {
-      
       if (mounted) {
         setState(() {
           result = 'Parser error: ${e.toString()}\n\nStack trace:\n$stackTrace';
@@ -285,43 +309,212 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
     }
   }
 
-  // Example of database approach
+  // Example of database approach with small Bible files
   Future<void> _initializeDatabase() async {
     setState(() {
       isLoading = true;
       result = '';
+      isFullBible = false;
     });
 
     try {
       // Load the XML content from assets (works on all platforms including web)
-      final xmlString = await DefaultAssetBundle.of(context).loadString(xmlPath);
-      
+      final xmlString =
+          await DefaultAssetBundle.of(context).loadString(xmlPath);
+
       // Create a repository with the XML string and selected format
       repository = BibleRepository.fromString(
-        xmlString: xmlString,
-        format: currentFormat.name.toUpperCase()
-      );
-      
+          xmlString: xmlString, format: currentFormat.name.toUpperCase());
+
       // Initialize the database (this will parse the XML and store it in the database)
       final stopwatch = Stopwatch()..start();
       await repository!.initialize();
       stopwatch.stop();
-      
+
       // Get all books
       books = await repository!.getBooks();
       if (books.isNotEmpty) {
         selectedBook = books.first;
         _updateAvailableChapters();
       }
-      
+
       setState(() {
-        result = 'Database Initialized in ${stopwatch.elapsedMilliseconds}ms\n\n' +
-            'Books:\n' +
-            books.map((b) => '${b.num}. ${b.title} (${b.id})').join('\n');
+        result =
+            'Database Initialized in ${stopwatch.elapsedMilliseconds}ms\n\n' +
+                'Books:\n' +
+                books.map((b) => '${b.num}. ${b.title} (${b.id})').join('\n');
       });
     } catch (e) {
       setState(() {
         result = 'Error: ${e.toString()}';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  // Initialize database with KJV sample Bible
+  Future<void> _initializeKjvSample() async {
+    setState(() {
+      isLoading = true;
+      result = 'Loading KJV sample Bible...';
+      isFullBible = false;
+    });
+
+    try {
+      final xmlString = await DefaultAssetBundle.of(context)
+          .loadString('assets/bible_kjv_sample.xml');
+      final parser = BibleParser.fromString(xmlString, format: 'OSIS');
+
+      // Starting to parse KJV sample Bible
+      final collectedBooks = <Book>[];
+      await for (final book in parser.books) {
+        collectedBooks.add(book);
+        // Book collected
+        // Chapters counted
+        // Skip chapter details for brevity
+      }
+
+      // Total books collected
+
+      final stopwatch = Stopwatch()..start();
+      repository =
+          BibleRepository.fromString(xmlString: xmlString, format: 'OSIS');
+      setState(() {
+        result = 'Books parsed successfully. Now initializing database...';
+      });
+
+      await repository!.initialize();
+      stopwatch.stop();
+
+      books = await repository!.getBooks();
+      if (books.isNotEmpty) {
+        selectedBook = books.first;
+        await _updateAvailableChapters();
+      }
+
+      String verseInfo = '';
+      if (books.isNotEmpty && selectedChapter != null) {
+        try {
+          final verses = await repository!.getVerses(books.first.id, 1);
+          verseInfo = '\n\nFirst chapter has ${verses.length} verses';
+          if (verses.isNotEmpty) {
+            verseInfo +=
+                '\nSample verse: ${verses.first.num}. ${verses.first.text.substring(0, math.min(50, verses.first.text.length))}...';
+          }
+        } catch (e) {
+          verseInfo = '\n\nCould not load verses: ${e.toString()}';
+        }
+      }
+
+      setState(() {
+        result =
+            'KJV Sample Bible Database Initialized in ${stopwatch.elapsedMilliseconds}ms\n\n' +
+                'Total Books: ${books.length}' +
+                verseInfo +
+                '\n\n' +
+                'Books:\n' +
+                books.map((b) => '${b.num}. ${b.title} (${b.id})').join('\n');
+      });
+    } catch (e, stackTrace) {
+      setState(() {
+        result =
+            'Error loading KJV sample Bible: ${e.toString()}\n\nStack trace:\n$stackTrace';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  // Initialize database with full KJV Bible
+  Future<void> _initializeFullBible() async {
+    setState(() {
+      isLoading = true;
+      result = 'Loading full KJV Bible... This may take some time.';
+      isFullBible = true;
+    });
+
+    try {
+      final xmlString = await DefaultAssetBundle.of(context)
+          .loadString('assets/bible_kjv_osis.xml');
+      final parser = BibleParser.fromString(xmlString, format: 'OSIS');
+
+      // Starting to parse KJV Bible
+      final collectedBooks = <Book>[];
+      await for (final book in parser.books) {
+        collectedBooks.add(book);
+        if (collectedBooks.length % 5 == 0 && mounted) {
+          setState(() {
+            result =
+                'Parsing Bible...\n\nProcessed ${collectedBooks.length} books so far';
+          });
+        }
+      }
+
+      // Now create the repository with the XML string in OSIS format
+      final stopwatch = Stopwatch()..start();
+      repository =
+          BibleRepository.fromString(xmlString: xmlString, format: 'OSIS');
+
+      // Update progress
+      if (mounted) {
+        setState(() {
+          result =
+              'Books parsed successfully. Now initializing database...\n\n' +
+                  'This may take several minutes for the full KJV Bible.';
+        });
+      }
+
+      // Initialize the database (this will parse the XML and store it in the database)
+      await repository!.initialize();
+      stopwatch.stop();
+
+      // Get all books from the repository
+      books = await repository!.getBooks();
+      if (books.isNotEmpty) {
+        selectedBook = books.first;
+        await _updateAvailableChapters();
+      }
+
+      // Verify that chapters and verses are loaded by checking the first book
+      String verseInfo = '';
+      if (books.isNotEmpty && selectedChapter != null) {
+        try {
+          final verses = await repository!.getVerses(books.first.id, 1);
+          verseInfo = '\n\nFirst chapter has ${verses.length} verses';
+
+          if (verses.isNotEmpty) {
+            verseInfo +=
+                '\nSample verse: ${verses.first.num}. ${verses.first.text.substring(0, math.min(50, verses.first.text.length))}...';
+          }
+        } catch (e) {
+          verseInfo = '\n\nCould not load verses: ${e.toString()}';
+        }
+      }
+
+      setState(() {
+        result =
+            'Full KJV Bible Database Initialized in ${stopwatch.elapsedMilliseconds}ms\n\n' +
+                'Total Books: ${books.length}' +
+                verseInfo +
+                '\n\n' +
+                'First 10 Books:\n' +
+                books
+                    .take(10)
+                    .map((b) => '${b.num}. ${b.title} (${b.id})')
+                    .join('\n') +
+                (books.length > 10
+                    ? '\n\n... and ${books.length - 10} more books'
+                    : '');
+      });
+    } catch (e, stackTrace) {
+      setState(() {
+        result =
+            'Error loading full Bible: ${e.toString()}\n\nStack trace:\n$stackTrace';
       });
     } finally {
       setState(() {
@@ -333,7 +526,7 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
   // Example of searching verses using the database
   Future<void> _searchVerses() async {
     if (repository == null) return;
-    
+
     setState(() {
       isLoading = true;
       result = '';
@@ -344,12 +537,17 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
       final stopwatch = Stopwatch()..start();
       final verses = await repository!.searchVerses('love');
       stopwatch.stop();
-      
+
       setState(() {
         result = 'Search completed in ${stopwatch.elapsedMilliseconds}ms\n\n' +
             'Found ${verses.length} verses containing "love":\n\n' +
-            verses.take(10).map((v) => '${v.bookId} ${v.chapterNum}:${v.num} - ${v.text}').join('\n\n') +
-            (verses.length > 10 ? '\n\n... and ${verses.length - 10} more' : '');
+            verses
+                .take(10)
+                .map((v) => '${v.bookId} ${v.chapterNum}:${v.num} - ${v.text}')
+                .join('\n\n') +
+            (verses.length > 10
+                ? '\n\n... and ${verses.length - 10} more'
+                : '');
       });
     } catch (e) {
       setState(() {
@@ -361,11 +559,13 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
       });
     }
   }
-  
+
   // Update the available chapters based on the selected book
   Future<void> _updateAvailableChapters() async {
-    if (repository == null || selectedBook == null) return;
-    
+    if (repository == null ||
+        selectedBook == null ||
+        selectedBook!.id == "Unknown") return;
+
     try {
       final chapterCount = await repository!.getChapterCount(selectedBook!.id);
       setState(() {
@@ -384,11 +584,12 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
       });
     }
   }
-  
+
   // Load verses for the selected book and chapter
   Future<void> _loadVerses() async {
-    if (repository == null || selectedBook == null || selectedChapter == null) return;
-    
+    if (repository == null || selectedBook == null || selectedChapter == null)
+      return;
+
     setState(() {
       isLoading = true;
       result = '';
@@ -396,9 +597,10 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
 
     try {
       final stopwatch = Stopwatch()..start();
-      final verses = await repository!.getVerses(selectedBook!.id, selectedChapter!);
+      final verses =
+          await repository!.getVerses(selectedBook!.id, selectedChapter!);
       stopwatch.stop();
-      
+
       setState(() {
         result = '${selectedBook!.title} Chapter $selectedChapter\n' +
             'Loaded ${verses.length} verses in ${stopwatch.elapsedMilliseconds}ms\n\n' +

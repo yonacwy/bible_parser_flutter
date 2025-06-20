@@ -93,34 +93,37 @@ class OsisParser extends BaseParser {
     print('OsisParser.parseBooks() called');
     final content = await getContent();
     print('Content loaded for books, length: ${content.length}');
-    print('First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
-    
+    print(
+        'First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
+
     // Current parsing state
     Book? currentBook;
     Chapter? currentChapter;
     Verse? currentVerse;
     int bookCount = 0;
-    
+
     // Parse XML using events for memory efficiency
     try {
       final events = await parseEvents(content).toList();
       print('XML events collected for books, count: ${events.length}');
-      
+
       // Debug: Print the first 10 events to see what we're working with
       print('First 10 XML events:');
       for (int i = 0; i < events.length && i < 10; i++) {
         final event = events[i];
         if (event is XmlStartElementEvent) {
-          print('  Event $i: Start element: ${event.name}, attributes: ${event.attributes}');
+          print(
+              '  Event $i: Start element: ${event.name}, attributes: ${event.attributes}');
         } else if (event is XmlEndElementEvent) {
           print('  Event $i: End element: ${event.name}');
         } else if (event is XmlTextEvent) {
-          print('  Event $i: Text: ${event.text.trim().substring(0, event.text.trim().length > 20 ? 20 : event.text.trim().length)}...');
+          print(
+              '  Event $i: Text: ${event.text.trim().substring(0, event.text.trim().length > 20 ? 20 : event.text.trim().length)}...');
         } else {
           print('  Event $i: Other event type: ${event.runtimeType}');
         }
       }
-      
+
       for (final event in events) {
         if (event is XmlStartElementEvent) {
           if (event.name == 'div') {
@@ -132,160 +135,7 @@ class OsisParser extends BaseParser {
                 break;
               }
             }
-            
-            // Skip if not a book div
-            if (!isBookDiv) continue;
 
-          // Find the osisID attribute
-          String osisID = '';
-          for (var attr in event.attributes) {
-            if (attr.name == 'osisID') {
-              osisID = attr.value;
-              break;
-            }
-          }
-          
-          if (osisID.isNotEmpty) {
-            final bookId = osisID.toLowerCase();
-            final bookNum = _getBookNum(bookId);
-            final bookName = _getBookName(bookId);
-            
-            currentBook = Book(
-              id: bookId,
-              num: bookNum,
-              title: bookName,
-            );
-          }
-        } else if (event.name == 'chapter' && currentBook != null) {
-          // Find chapter number from attributes
-          String chapterNumStr = '1';
-          String attrName = '';
-          
-          for (var attr in event.attributes) {
-            if (attr.name == 'n') {
-              chapterNumStr = attr.value;
-              attrName = attr.name;
-              break;
-            } else if (attr.name == 'osisID') {
-              chapterNumStr = attr.value;
-              attrName = attr.name;
-              break;
-            }
-          }
-          
-          // Extract chapter number from osisID (e.g., "Gen.1" -> "1")
-          if (attrName == 'osisID' && chapterNumStr.contains('.')) {
-            chapterNumStr = chapterNumStr.split('.').last;
-          }
-          
-          final chapterNum = int.tryParse(chapterNumStr) ?? 1;
-          
-          currentChapter = Chapter(
-            num: chapterNum,
-            bookId: currentBook!.id,
-          );
-        } else if (event.name == 'verse' && currentBook != null && currentChapter != null) {
-          // Find verse attributes
-          String verseOsisID = '';
-          String verseNum = '1';
-          
-          for (var attr in event.attributes) {
-            if (attr.name == 'osisID') {
-              verseOsisID = attr.value;
-            } else if (attr.name == 'n') {
-              verseNum = attr.value;
-            }
-          }
-          
-          // Extract verse number from osisID (e.g., "Gen.1.1" -> "1") or use 'n' attribute
-          String verseNumStr = verseNum;
-          if (verseOsisID.isNotEmpty) {
-            final parts = verseOsisID.split('.');
-            if (parts.length > 2) {
-              verseNumStr = parts[2];
-            }
-          }
-          
-          final verseNumber = int.tryParse(verseNumStr) ?? 1;
-          
-          // Verse text will be collected in the character events
-          currentVerse = Verse(
-            num: verseNumber,
-            chapterNum: currentChapter!.num,
-            text: '',
-            bookId: currentBook!.id,
-          );
-        }
-      } else if (event is XmlEndElementEvent) {
-        if (event.name == 'div' && currentBook != null) {
-          // End of book div - we rely on the element name and current state to determine if this is the end of a book
-          bookCount++;
-          print('Yielding book: ${currentBook!.id} (${currentBook!.title})');
-          // Directly yield the book instead of using a stream controller
-          yield currentBook!;
-          currentBook = null;
-          currentChapter = null;
-          currentVerse = null;
-        } else if (event.name == 'chapter' && currentBook != null && currentChapter != null) {
-          // End of chapter - add to current book
-          currentBook!.addChapter(currentChapter!);
-          currentChapter = null;
-        } else if (event.name == 'verse' && currentBook != null && currentChapter != null && currentVerse != null) {
-          // End of verse - add to current chapter
-          currentChapter!.addVerse(currentVerse!);
-          currentVerse = null;
-        }
-      } else if (event is XmlTextEvent && currentVerse != null) {
-        // Append text to current verse
-        final newText = currentVerse!.text + event.text.trim();
-        currentVerse = Verse(
-          num: currentVerse!.num,
-          chapterNum: currentVerse!.chapterNum,
-          text: newText,
-          bookId: currentVerse!.bookId,
-        );
-      }
-    }
-    
-    print('OsisParser.parseBooks() completed. Total books yielded: $bookCount');
-    } catch (e, stackTrace) {
-      print('Error in parseBooks: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
-    }
-  }
-
-  @override
-  Stream<Verse> parseVerses() async* {
-    print('OsisParser.parseVerses() called');
-    final content = await getContent();
-    print('Content loaded, length: ${content.length}');
-    
-    // Current parsing state
-    String? currentBookId;
-    int? currentChapterNum;
-    Verse? currentVerse;
-    int verseCount = 0;
-    
-    print('Starting to parse XML events...');
-    
-    try {
-      // Parse XML using events for memory efficiency
-      final events = await parseEvents(content).toList();
-      print('XML events collected, count: ${events.length}');
-      
-      for (final event in events) {
-        if (event is XmlStartElementEvent) {
-          if (event.name == 'div') {
-            // Check if this is a book div by looking for type="book" attribute
-            bool isBookDiv = false;
-            for (var attr in event.attributes) {
-              if (attr.name == 'type' && attr.value == 'book') {
-                isBookDiv = true;
-                break;
-              }
-            }
-            
             // Skip if not a book div
             if (!isBookDiv) continue;
 
@@ -297,18 +147,30 @@ class OsisParser extends BaseParser {
                 break;
               }
             }
-            
+
             if (osisID.isNotEmpty) {
-              currentBookId = osisID.toLowerCase();
-              print('Found book: $currentBookId');
+              final bookId = osisID.toLowerCase();
+              final bookNum = _getBookNum(bookId);
+              final bookName = _getBookName(bookId);
+
+              currentBook = Book(
+                id: bookId,
+                num: bookNum,
+                title: bookName,
+              );
             }
-          } else if (event.name == 'chapter' && currentBookId != null) {
+          // Some osis xml version use <chapter eID=""/> as end tags. Without the explicit check for eID here, those tags will be wrongly marked as start tags.
+          } else if (event.name == 'chapter' && currentBook != null && !event.attributes.any((attr) => attr.name == 'eID')) {
             // Find chapter number from attributes
             String chapterNumStr = '1';
             String attrName = '';
-            
+
             for (var attr in event.attributes) {
               if (attr.name == 'n') {
+                chapterNumStr = attr.value;
+                attrName = attr.name;
+                break;
+              } else if (attr.name == 'osisRef') {
                 chapterNumStr = attr.value;
                 attrName = attr.name;
                 break;
@@ -318,27 +180,198 @@ class OsisParser extends BaseParser {
                 break;
               }
             }
-            
+
             // Extract chapter number from osisID (e.g., "Gen.1" -> "1")
             if (attrName == 'osisID' && chapterNumStr.contains('.')) {
               chapterNumStr = chapterNumStr.split('.').last;
+            } else if (attrName == 'osisRef' && chapterNumStr.contains('.')) {
+              chapterNumStr = chapterNumStr.split('.').last;
             }
-            
+
+            final chapterNum = int.tryParse(chapterNumStr) ?? 1;
+
+            currentChapter = Chapter(
+              num: chapterNum,
+              bookId: currentBook.id,
+            );
+            // Some osis xml version use <verse eID=""/> as end tags. Without the explicit check for eID here, those tags will be wrongly marked as start tags.
+          } else if (event.name == 'verse' &&
+              currentBook != null &&
+              currentChapter != null &&
+              !event.attributes.any((attr) => attr.name == 'eID')) {
+            // Find verse attributes
+            String verseOsisID = '';
+            String verseNum = '1';
+
+            for (var attr in event.attributes) {
+              if (attr.name == 'n') {
+                verseNum = attr.value;
+              } else if (attr.name == 'osisID') {
+                verseOsisID = attr.value;
+              }
+            }
+
+            // Extract verse number from osisID (e.g., "Gen.1.1" -> "1") or use 'n' attribute
+            String verseNumStr = verseNum;
+            if (verseOsisID.isNotEmpty) {
+              final parts = verseOsisID.split('.');
+              if (parts.length > 2) {
+                verseNumStr = parts[2];
+              }
+            }
+
+            final verseNumber = int.tryParse(verseNumStr) ?? 1;
+
+            // Verse text will be collected in the character events
+            currentVerse = Verse(
+              num: verseNumber,
+              chapterNum: currentChapter.num,
+              text: '',
+              bookId: currentBook.id,
+            );
+            // Some osis xml version use <chapter eID=""/> as end tags for chapters. This catches such cases..
+          } else if(event.name == 'chapter' && currentBook != null && currentChapter != null && event.attributes.any((attr) => attr.name == 'eID')){
+            // End of chapter - add to current book
+            currentBook.addChapter(currentChapter);
+            currentChapter = null;
+          }
+          // Some osis xml version use <verse eID=""/> as end tags for verses. This catches such cases.
+          else if(event.name == 'verse' && currentBook != null && currentChapter != null && currentVerse != null && event.attributes.any((attr) => attr.name == 'eID')){
+            // End of verse - add to current chapter
+            currentChapter.addVerse(currentVerse);
+            currentVerse = null;
+          }
+        } else if (event is XmlEndElementEvent) {
+          if (event.name == 'div' && currentBook != null) {
+            // End of book div - we rely on the element name and current state to determine if this is the end of a book
+            bookCount++;
+            print('Yielding book: ${currentBook.id} (${currentBook.title})');
+            // Directly yield the book instead of using a stream controller
+            yield currentBook;
+            currentBook = null;
+            currentChapter = null;
+            currentVerse = null;
+          } else if (event.name == 'chapter' &&
+              currentBook != null &&
+              currentChapter != null) {
+            // End of chapter - add to current book
+            currentBook.addChapter(currentChapter);
+            currentChapter = null;
+          } else if (event.name == 'verse' &&
+              currentBook != null &&
+              currentChapter != null &&
+              currentVerse != null) {
+            // End of verse - add to current chapter
+            currentChapter.addVerse(currentVerse);
+            currentVerse = null;
+          }
+        } else if (event is XmlTextEvent && currentVerse != null) {
+          // Append text to current verse
+          final newText = currentVerse.text + event.value.trim();
+          currentVerse = Verse(
+            num: currentVerse.num,
+            chapterNum: currentVerse.chapterNum,
+            text: newText,
+            bookId: currentVerse.bookId,
+          );
+        }
+      }
+
+      print(
+          'OsisParser.parseBooks() completed. Total books yielded: $bookCount');
+    } catch (e, stackTrace) {
+      print('Error in parseBooks: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  @override
+  Stream<Verse> parseVerses() async* {
+    final content = await getContent();
+
+    // Current parsing state
+    String? currentBookId;
+    int? currentChapterNum;
+    Verse? currentVerse;
+    int verseCount = 0;
+
+
+    try {
+      // Parse XML using events for memory efficiency
+      final events = await parseEvents(content).toList();
+
+      for (final event in events) {
+        if (event is XmlStartElementEvent) {
+          if (event.name == 'div') {
+            // Check if this is a book div by looking for type="book" attribute
+            bool isBookDiv = false;
+            for (var attr in event.attributes) {
+              if (attr.name == 'type' && attr.value == 'book') {
+                isBookDiv = true;
+                break;
+              }
+            }
+
+            // Skip if not a book div
+            if (!isBookDiv) continue;
+
+            // Find the osisID attribute
+            String osisID = '';
+            for (var attr in event.attributes) {
+              if (attr.name == 'osisID') {
+                osisID = attr.value;
+                break;
+              }
+            }
+
+            if (osisID.isNotEmpty) {
+              currentBookId = osisID.toLowerCase();
+            }
+          } else if (event.name == 'chapter' && currentBookId != null) {
+            // Find chapter number from attributes
+            String chapterNumStr = '1';
+            String attrName = '';
+
+            for (var attr in event.attributes) {
+              if (attr.name == 'n') {
+                chapterNumStr = attr.value;
+                attrName = attr.name;
+                break;
+              } else if (attr.name == 'osisRef') {
+                chapterNumStr = attr.value;
+                attrName = attr.name;
+                break;
+              } else if (attr.name == 'osisID') {
+                chapterNumStr = attr.value;
+                attrName = attr.name;
+                break;
+              }
+            }
+
+            // Extract chapter number from osisID (e.g., "Gen.1" -> "1")
+            if (attrName == 'osisID' && chapterNumStr.contains('.')) {
+              chapterNumStr = chapterNumStr.split('.').last;
+            } else if (attrName == 'osisRef' && chapterNumStr.contains('.')) {
+              chapterNumStr = chapterNumStr.split('.').last;
+            }
+
             currentChapterNum = int.tryParse(chapterNumStr) ?? 1;
-            print('Found chapter: $currentBookId $currentChapterNum');
-          } else if (event.name == 'verse' && currentBookId != null && currentChapterNum != null) {
+          } else if (event.name == 'verse' &&
+              currentBookId != null &&
+              currentChapterNum != null) {
             // Find verse attributes
             String verseOsisID = '';
             String verseNumStr = '1';
-            
+
             for (var attr in event.attributes) {
-              if (attr.name == 'osisID') {
-                verseOsisID = attr.value;
-              } else if (attr.name == 'n') {
+              if (attr.name == 'n') {
                 verseNumStr = attr.value;
+              } else if (attr.name == 'osisID') {
+                verseOsisID = attr.value;
               }
             }
-            
+
             // Extract verse number from osisID (e.g., "Gen.1.1" -> "1") or use 'n' attribute
             if (verseOsisID.isNotEmpty) {
               final parts = verseOsisID.split('.');
@@ -346,40 +379,38 @@ class OsisParser extends BaseParser {
                 verseNumStr = parts[2];
               }
             }
-            
+
             final verseNum = int.tryParse(verseNumStr) ?? 1;
-            print('Found verse start: $currentBookId $currentChapterNum:$verseNum');
-            
+
             currentVerse = Verse(
               num: verseNum,
-              chapterNum: currentChapterNum!,
+              chapterNum: currentChapterNum,
               text: '',
-              bookId: currentBookId!,
+              bookId: currentBookId,
             );
           }
         } else if (event is XmlEndElementEvent) {
           if (event.name == 'verse' && currentVerse != null) {
             verseCount++;
-            print('Yielding verse: ${currentVerse!.bookId} ${currentVerse!.chapterNum}:${currentVerse!.num}');
             // Directly yield the verse instead of using a stream controller
-            yield currentVerse!;
+            yield currentVerse;
             currentVerse = null;
           }
         } else if (event is XmlTextEvent && currentVerse != null) {
-          final trimmedText = event.text.trim();
+          final trimmedText = event.value.trim();
           if (trimmedText.isNotEmpty) {
             // Append text to current verse
-            final newText = currentVerse!.text + trimmedText;
+            final newText = currentVerse.text + trimmedText;
             currentVerse = Verse(
-              num: currentVerse!.num,
-              chapterNum: currentVerse!.chapterNum,
+              num: currentVerse.num,
+              chapterNum: currentVerse.chapterNum,
               text: newText,
-              bookId: currentVerse!.bookId,
+              bookId: currentVerse.bookId,
             );
           }
         }
       }
-      
+
       print('XML parsing complete. Total verses yielded: $verseCount');
     } catch (e, stackTrace) {
       print('Error in parseVerses: $e');
@@ -408,13 +439,14 @@ class OsisParser extends BaseParser {
     }
     return 'Unknown';
   }
-  
+
   /// Parses XML events from the content string.
   Stream<XmlEvent> parseEvents(String content) {
     try {
       print('parseEvents called with content length: ${content.length}');
-      print('First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
-      
+      print(
+          'First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
+
       // Use a more robust approach for XML parsing
       try {
         // Convert the content to a list of XmlEvents and then create a stream from it
@@ -425,11 +457,12 @@ class OsisParser extends BaseParser {
       } catch (xmlError, stackTrace) {
         print('XML parsing error: $xmlError');
         print('Stack trace: $stackTrace');
-        
+
         // Try a fallback approach for web compatibility
         print('Trying fallback XML parsing approach...');
         // Remove XML namespace declarations which can cause issues in some environments
-        final cleanedContent = content.replaceAll(RegExp(r'xmlns(:\w+)?="[^"]*"'), '');
+        final cleanedContent =
+            content.replaceAll(RegExp(r'xmlns(:\w+)?="[^"]*"'), '');
         final events = XmlEventDecoder().convert(cleanedContent);
         print('Fallback parsing successful, event count: ${events.length}');
         return Stream.fromIterable(events);
@@ -441,7 +474,7 @@ class OsisParser extends BaseParser {
       throw ParseError('Failed to parse XML content: $e');
     }
   }
-  
+
   @override
   Future<String> getContent() async {
     try {
@@ -450,7 +483,7 @@ class OsisParser extends BaseParser {
         print('Source is String, returning directly');
         return source as String;
       }
-      
+
       // Otherwise, try the parent implementation
       try {
         return await super.getContent();
@@ -469,7 +502,4 @@ class OsisParser extends BaseParser {
       throw ParseError('Failed to read content: $e');
     }
   }
-  
-  // Current verse being processed
-  Verse? currentVerse;
 }

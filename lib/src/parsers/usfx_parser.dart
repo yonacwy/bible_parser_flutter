@@ -1,0 +1,303 @@
+import 'dart:async';
+import 'package:xml/xml_events.dart';
+
+import 'base_parser.dart';
+import '../book.dart';
+import '../chapter.dart';
+import '../verse.dart';
+import '../errors.dart';
+
+/// Parser for the USFX Bible format.
+class UsfxParser extends BaseParser {
+  /// USFX book ID to canonical book name mapping.
+  static const Map<String, String> _bookNames = {
+    'GEN': 'Genesis',
+    'EXO': 'Exodus',
+    'LEV': 'Leviticus',
+    'NUM': 'Numbers',
+    'DEU': 'Deuteronomy',
+    'JOS': 'Joshua',
+    'JDG': 'Judges',
+    'RUT': 'Ruth',
+    '1SA': '1 Samuel',
+    '2SA': '2 Samuel',
+    '1KI': '1 Kings',
+    '2KI': '2 Kings',
+    '1CH': '1 Chronicles',
+    '2CH': '2 Chronicles',
+    'EZR': 'Ezra',
+    'NEH': 'Nehemiah',
+    'EST': 'Esther',
+    'JOB': 'Job',
+    'PSA': 'Psalms',
+    'PRO': 'Proverbs',
+    'ECC': 'Ecclesiastes',
+    'SNG': 'Song of Solomon',
+    'ISA': 'Isaiah',
+    'JER': 'Jeremiah',
+    'LAM': 'Lamentations',
+    'EZK': 'Ezekiel',
+    'DAN': 'Daniel',
+    'HOS': 'Hosea',
+    'JOL': 'Joel',
+    'AMO': 'Amos',
+    'OBA': 'Obadiah',
+    'JON': 'Jonah',
+    'MIC': 'Micah',
+    'NAM': 'Nahum',
+    'HAB': 'Habakkuk',
+    'ZEP': 'Zephaniah',
+    'HAG': 'Haggai',
+    'ZEC': 'Zechariah',
+    'MAL': 'Malachi',
+    'MAT': 'Matthew',
+    'MRK': 'Mark',
+    'LUK': 'Luke',
+    'JHN': 'John',
+    'ACT': 'Acts',
+    'ROM': 'Romans',
+    '1CO': '1 Corinthians',
+    '2CO': '2 Corinthians',
+    'GAL': 'Galatians',
+    'EPH': 'Ephesians',
+    'PHP': 'Philippians',
+    'COL': 'Colossians',
+    '1TH': '1 Thessalonians',
+    '2TH': '2 Thessalonians',
+    '1TI': '1 Timothy',
+    '2TI': '2 Timothy',
+    'TIT': 'Titus',
+    'PHM': 'Philemon',
+    'HEB': 'Hebrews',
+    'JAS': 'James',
+    '1PE': '1 Peter',
+    '2PE': '2 Peter',
+    '1JN': '1 John',
+    '2JN': '2 John',
+    '3JN': '3 John',
+    'JUD': 'Jude',
+    'REV': 'Revelation',
+  };
+
+  /// Creates a new USFX parser.
+  UsfxParser(super.source);
+
+  @override
+  bool checkFormat(String content) {
+    // Check for USFX format markers
+    return content.contains('<usfx') || content.contains('<USFX');
+  }
+
+  @override
+  Stream<Book> parseBooks() async* {
+    final content = await getContent();
+    
+    // Current parsing state
+    Book? currentBook;
+    Chapter? currentChapter;
+    Verse? currentVerse;
+    
+    // Parse XML using events for memory efficiency
+    try {
+      final events = await parseEvents(content).toList();
+      
+      for (final event in events) {
+        if (event is XmlStartElementEvent) {
+          if (event.name == 'book') {
+            // Find book ID from attributes
+            String bookId = '';
+            
+            for (var attr in event.attributes) {
+              if (attr.name == 'id') {
+                bookId = attr.value.toLowerCase();
+                break;
+              }
+            }
+            
+            // Skip if no book ID found
+            if (bookId.isEmpty) continue;
+            
+            final bookNum = _getBookNum(bookId);
+            final bookName = _getBookName(bookId.toUpperCase());
+            
+            currentBook = Book(
+              id: bookId,
+              num: bookNum,
+              title: bookName,
+            );
+          } else if (event.name == 'c' && currentBook != null) {
+            // Find chapter number from attributes
+            String chapterNumStr = '1';
+            
+            for (var attr in event.attributes) {
+              if (attr.name == 'id') {
+                chapterNumStr = attr.value;
+                break;
+              }
+            }
+            
+            final chapterNum = int.tryParse(chapterNumStr) ?? 1;
+            
+            currentChapter = Chapter(
+              num: chapterNum,
+              bookId: currentBook.id,
+            );
+          } else if (event.name == 'v' && currentBook != null && currentChapter != null) {
+            // Find verse number from attributes
+            String verseNumStr = '1';
+            
+            for (var attr in event.attributes) {
+              if (attr.name == 'id') {
+                verseNumStr = attr.value;
+                break;
+              }
+            }
+            
+            final verseNum = int.tryParse(verseNumStr) ?? 1;
+            
+            // Verse text will be collected in the character events
+            // This is just setting up the verse
+            currentVerse = Verse(
+              num: verseNum,
+              chapterNum: currentChapter.num,
+              text: '',
+              bookId: currentBook.id,
+            );
+          }
+        } else if (event is XmlEndElementEvent) {
+          if (event.name == 'book' && currentBook != null) {
+            yield currentBook;
+            currentBook = null;
+            currentChapter = null;
+          } else if (event.name == 'c' && currentBook != null && currentChapter != null) {
+            currentBook.addChapter(currentChapter);
+            currentChapter = null;
+          } else if (event.name == 'v' && currentBook != null && currentChapter != null && currentVerse != null) {
+            currentChapter.addVerse(currentVerse);
+            currentVerse = null;
+          }
+        } else if (event is XmlTextEvent && currentVerse != null) {
+          // Append text to current verse
+          final newText = currentVerse.text + event.value.trim();
+          currentVerse = Verse(
+            num: currentVerse.num,
+            chapterNum: currentVerse.chapterNum,
+            text: newText,
+            bookId: currentVerse.bookId,
+          );
+        }
+      }
+    } catch (e, stackTrace) {
+      throw BibleParserException('Error parsing books: $e');
+    }
+  }
+
+  @override
+  Stream<Verse> parseVerses() async* {
+    final content = await getContent();
+    
+    // Current parsing state
+    String? currentBookId;
+    int? currentChapterNum;
+    Verse? currentVerse;
+    int verseCount = 0;
+    
+    // Parse XML using events for memory efficiency
+    try {
+      final events = await parseEvents(content).toList();
+      
+      for (final event in events) {
+        if (event is XmlStartElementEvent) {
+          if (event.name == 'book') {
+            // Find book ID from attributes
+            String bookId = '';
+            
+            for (var attr in event.attributes) {
+              if (attr.name == 'id') {
+                bookId = attr.value.toLowerCase();
+                break;
+              }
+            }
+            
+            if (bookId.isEmpty) continue;
+            currentBookId = bookId;
+          } else if (event.name == 'c' && currentBookId != null) {
+            // Find chapter number from attributes
+            String chapterNumStr = '1';
+            
+            for (var attr in event.attributes) {
+              if (attr.name == 'id') {
+                chapterNumStr = attr.value;
+                break;
+              }
+            }
+            
+            currentChapterNum = int.tryParse(chapterNumStr) ?? 1;
+          } else if (event.name == 'v' && currentBookId != null && currentChapterNum != null) {
+            // Find verse number from attributes
+            String verseNumStr = '1';
+            
+            for (var attr in event.attributes) {
+              if (attr.name == 'id') {
+                verseNumStr = attr.value;
+                break;
+              }
+            }
+            
+            final verseNum = int.tryParse(verseNumStr) ?? 1;
+
+            
+            currentVerse = Verse(
+              num: verseNum,
+              chapterNum: currentChapterNum!,
+              text: '',
+              bookId: currentBookId!,
+            );
+          }
+        } else if (event is XmlEndElementEvent) {
+          if (event.name == 'v' && currentVerse != null) {
+            verseCount++;
+            yield currentVerse;
+            
+            currentVerse = null;
+          }
+        } else if (event is XmlTextEvent && currentVerse != null) {
+          // Append text to current verse
+          final newText = currentVerse.text + event.value.trim();
+          currentVerse = Verse(
+            num: currentVerse.num,
+            chapterNum: currentVerse.chapterNum,
+            text: newText,
+            bookId: currentVerse.bookId,
+          );
+        }
+      }
+    } catch (e, stackTrace) {
+      throw BibleParserException('Error parsing verses: $e');
+    }
+  }
+
+  /// Gets the book number based on its ID.
+  int _getBookNum(String bookId) {
+    final upperBookId = bookId.toUpperCase();
+    final keys = _bookNames.keys.toList();
+    final index = keys.indexOf(upperBookId);
+    return index >= 0 ? index + 1 : 0;
+  }
+
+  /// Gets the book name based on its ID.
+  String _getBookName(String bookId) {
+    return _bookNames[bookId] ?? 'Unknown';
+  }
+  
+  /// Parses XML events from the content string.
+  Stream<XmlEvent> parseEvents(String content) {
+    try {
+      final events = XmlEventDecoder().convert(content);
+      return Stream.fromIterable(events);
+    } catch (e) {
+      // Handle XML parsing errors
+      throw ParseError('Failed to parse XML content: $e');
+    }
+  }
+}

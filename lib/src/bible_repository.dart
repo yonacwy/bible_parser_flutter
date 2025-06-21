@@ -157,11 +157,11 @@ class BibleRepository {
             }
           }
         } catch (e, stackTrace) {
-          throw Exception('Failed to process Bible data: $e');
+          throw Exception('Failed to process Bible data: $e, $stackTrace');
         }
       });
     } catch (e, stackTrace) {
-      throw Exception('Failed to create Bible database: $e');
+      throw Exception('Failed to create Bible database: $e, $stackTrace');
     }
     
     // Set database version

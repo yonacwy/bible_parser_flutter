@@ -218,7 +218,7 @@ class ZefaniaParser extends BaseParser {
             String bookId = '';
 
             for (var attr in event.attributes) {
-              if (attr.name == 'bnumber') {
+              if (attr.name == 'bsname') {
                 bookId = attr.value;
                 break;
               }

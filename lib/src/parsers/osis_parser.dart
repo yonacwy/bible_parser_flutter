@@ -90,39 +90,16 @@ class OsisParser extends BaseParser {
 
   @override
   Stream<Book> parseBooks() async* {
-    print('OsisParser.parseBooks() called');
     final content = await getContent();
-    print('Content loaded for books, length: ${content.length}');
-    print(
-        'First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
 
     // Current parsing state
     Book? currentBook;
     Chapter? currentChapter;
     Verse? currentVerse;
-    int bookCount = 0;
 
     // Parse XML using events for memory efficiency
     try {
       final events = await parseEvents(content).toList();
-      print('XML events collected for books, count: ${events.length}');
-
-      // Debug: Print the first 10 events to see what we're working with
-      print('First 10 XML events:');
-      for (int i = 0; i < events.length && i < 10; i++) {
-        final event = events[i];
-        if (event is XmlStartElementEvent) {
-          print(
-              '  Event $i: Start element: ${event.name}, attributes: ${event.attributes}');
-        } else if (event is XmlEndElementEvent) {
-          print('  Event $i: End element: ${event.name}');
-        } else if (event is XmlTextEvent) {
-          print(
-              '  Event $i: Text: ${event.text.trim().substring(0, event.text.trim().length > 20 ? 20 : event.text.trim().length)}...');
-        } else {
-          print('  Event $i: Other event type: ${event.runtimeType}');
-        }
-      }
 
       for (final event in events) {
         if (event is XmlStartElementEvent) {
@@ -244,8 +221,6 @@ class OsisParser extends BaseParser {
         } else if (event is XmlEndElementEvent) {
           if (event.name == 'div' && currentBook != null) {
             // End of book div - we rely on the element name and current state to determine if this is the end of a book
-            bookCount++;
-            print('Yielding book: ${currentBook.id} (${currentBook.title})');
             // Directly yield the book instead of using a stream controller
             yield currentBook;
             currentBook = null;
@@ -276,13 +251,8 @@ class OsisParser extends BaseParser {
           );
         }
       }
-
-      print(
-          'OsisParser.parseBooks() completed. Total books yielded: $bookCount');
     } catch (e, stackTrace) {
-      print('Error in parseBooks: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
+      throw BibleParserException('Error in parseBooks: $e\n$stackTrace');
     }
   }
 
@@ -294,7 +264,6 @@ class OsisParser extends BaseParser {
     String? currentBookId;
     int? currentChapterNum;
     Verse? currentVerse;
-    int verseCount = 0;
 
 
     try {
@@ -391,7 +360,6 @@ class OsisParser extends BaseParser {
           }
         } else if (event is XmlEndElementEvent) {
           if (event.name == 'verse' && currentVerse != null) {
-            verseCount++;
             // Directly yield the verse instead of using a stream controller
             yield currentVerse;
             currentVerse = null;
@@ -410,12 +378,8 @@ class OsisParser extends BaseParser {
           }
         }
       }
-
-      print('XML parsing complete. Total verses yielded: $verseCount');
     } catch (e, stackTrace) {
-      print('Error in parseVerses: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
+      throw BibleParserException('Error parsing verses: $e\n$stackTrace');
     }
   }
 
@@ -443,35 +407,22 @@ class OsisParser extends BaseParser {
   /// Parses XML events from the content string.
   Stream<XmlEvent> parseEvents(String content) {
     try {
-      print('parseEvents called with content length: ${content.length}');
-      print(
-          'First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
-
       // Use a more robust approach for XML parsing
       try {
         // Convert the content to a list of XmlEvents and then create a stream from it
-        print('Using XmlEventDecoder to parse XML...');
         final events = XmlEventDecoder().convert(content);
-        print('XML parsed successfully, event count: ${events.length}');
         return Stream.fromIterable(events);
-      } catch (xmlError, stackTrace) {
-        print('XML parsing error: $xmlError');
-        print('Stack trace: $stackTrace');
+      } catch (xmlError) {
 
         // Try a fallback approach for web compatibility
-        print('Trying fallback XML parsing approach...');
         // Remove XML namespace declarations which can cause issues in some environments
         final cleanedContent =
             content.replaceAll(RegExp(r'xmlns(:\w+)?="[^"]*"'), '');
         final events = XmlEventDecoder().convert(cleanedContent);
-        print('Fallback parsing successful, event count: ${events.length}');
         return Stream.fromIterable(events);
       }
     } catch (e, stackTrace) {
-      // Handle XML parsing errors with detailed information
-      print('Fatal error in parseEvents: $e');
-      print('Stack trace: $stackTrace');
-      throw ParseError('Failed to parse XML content: $e');
+      throw ParseError('Failed to parse XML content: $e\n$stackTrace');
     }
   }
 
@@ -480,7 +431,6 @@ class OsisParser extends BaseParser {
     try {
       // For web compatibility, handle the source directly if it's a string
       if (source is String) {
-        print('Source is String, returning directly');
         return source as String;
       }
 
@@ -488,17 +438,14 @@ class OsisParser extends BaseParser {
       try {
         return await super.getContent();
       } catch (e) {
-        print('Error in super.getContent(): $e');
         // If the source is a File but we're on web, this will fail
         // In that case, if we can access the source directly, return it
         if (source != null) {
-          print('Attempting to return source directly');
           return source.toString();
         }
         rethrow;
       }
     } catch (e) {
-      print('Fatal error in getContent: $e');
       throw ParseError('Failed to read content: $e');
     }
   }

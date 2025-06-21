@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:bible_parser_flutter/bible_parser_flutter.dart';
 import 'dart:math' as math;
+import 'package:path/path.dart' as path;
 
 /// Enum for Bible formats supported by the app
-enum BibleFormat { osis, usfx, zxbml }
+enum BibleFormat { osis, usfx, zefania }
 
 void main() {
   runApp(const BibleParserExampleApp());
@@ -41,6 +43,8 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
   String result = '';
   BibleRepository? repository;
   bool isFullBible = false;
+  bool isUsingSubmodule = false;
+  String? selectedSubmoduleFile;
 
   // For verse viewing feature
   List<Book> books = [];
@@ -62,73 +66,78 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
             // Format selection
             Text('Select Bible Format:',
                 style: Theme.of(context).textTheme.titleMedium),
-                  Row(
-                    children: [
-                      Radio<BibleFormat>(
-                        value: BibleFormat.osis,
-                        groupValue: currentFormat,
-                        onChanged: (BibleFormat? value) {
-                          setState(() {
-                            currentFormat = value!;
-                            xmlPath = 'assets/bible_small.xml';
-                            result = 'Selected OSIS format';
-                          });
-                        },
-                      ),
-                      const Text('OSIS'),
-                  const SizedBox(width: 20),
-                      Radio<BibleFormat>(
-                        value: BibleFormat.usfx,
-                        groupValue: currentFormat,
-                        onChanged: (BibleFormat? value) {
-                          setState(() {
-                            currentFormat = value!;
-                            xmlPath = 'assets/bible_small_usfx.xml';
-                            result = 'Selected USFX format';
-                          });
-                        },
-                      ),
-                      const Text('USFX'),
-                  const SizedBox(width: 20),
-                      Radio<BibleFormat>(
-                        value: BibleFormat.zxbml,
-                        groupValue: currentFormat,
-                        onChanged: (BibleFormat? value) {
-                          setState(() {
-                            currentFormat = value!;
-                            xmlPath = 'assets/bible_small_zxbml.xml';
-                            result = 'Selected ZXBML format';
-                          });
-                        },
-                      ),
-                      const Text('ZXBML'),
-                    ],
+            Row(
+              children: [
+                Radio<BibleFormat>(
+                  value: BibleFormat.osis,
+                  groupValue: currentFormat,
+                  onChanged: (BibleFormat? value) {
+                    setState(() {
+                      currentFormat = value!;
+                      xmlPath = 'assets/bible_small.xml';
+                      result = 'Selected OSIS format';
+                    });
+                  },
+                ),
+                const Text('OSIS'),
+                const SizedBox(width: 20),
+                Radio<BibleFormat>(
+                  value: BibleFormat.usfx,
+                  groupValue: currentFormat,
+                  onChanged: (BibleFormat? value) {
+                    setState(() {
+                      currentFormat = value!;
+                      xmlPath = 'assets/bible_small_usfx.xml';
+                      result = 'Selected USFX format';
+                    });
+                  },
+                ),
+                const Text('USFX'),
+                const SizedBox(width: 20),
+                Radio<BibleFormat>(
+                  value: BibleFormat.zefania,
+                  groupValue: currentFormat,
+                  onChanged: (BibleFormat? value) {
+                    setState(() {
+                      currentFormat = value!;
+                      xmlPath = 'assets/bible_small_zxbml.xml';
+                      result = 'Selected ZXBML format';
+                    });
+                  },
+                ),
+                const Text('ZXBML'),
+              ],
             ),
             const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _parseDirectly,
-                  child: const Text('Parse Directly'),
-                ),
+            ElevatedButton(
+              onPressed: _parseDirectly,
+              child: const Text('Parse Directly'),
+            ),
             const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: isLoading ? null : _initializeDatabase,
-                  child: const Text('Initialize Database (Small)'),
-                ),
+            ElevatedButton(
+              onPressed: isLoading ? null : _initializeDatabase,
+              child: const Text('Initialize Database (Small)'),
+            ),
             const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: isLoading ? null : _initializeKjvSample,
-                  child: const Text('Initialize KJV Sample'),
-                ),
+            ElevatedButton(
+              onPressed: isLoading ? null : _initializeKjvSample,
+              child: const Text('Initialize KJV Sample'),
+            ),
             const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: isLoading ? null : _initializeFullBible,
-                  child: const Text('Initialize Full KJV Bible'),
-                ),
+            ElevatedButton(
+              onPressed: isLoading ? null : _initializeFullBible,
+              child: const Text('Initialize Full KJV Bible'),
+            ),
             const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: repository != null ? _searchVerses : null,
-                  child: const Text('Search for "love"'),
-                ),
+            ElevatedButton(
+              onPressed: isLoading ? null : _showOpenBiblesDialog,
+              child: const Text('Load from open-bibles submodule'),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: repository != null ? _searchVerses : null,
+              child: const Text('Search for "love"'),
+            ),
             const SizedBox(height: 20),
 
             // Book and Chapter selection
@@ -226,7 +235,7 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
           ],
         ),
       ),
-        );
+    );
   }
 
   // Test the original parser with our fix
@@ -422,6 +431,186 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
       setState(() {
         result =
             'Error loading KJV sample Bible: ${e.toString()}\n\nStack trace:\n$stackTrace';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  // Show dialog to select a Bible file from the open-bibles submodule
+  Future<void> _showOpenBiblesDialog() async {
+    setState(() {
+      isLoading = true;
+      result = 'Scanning open-bibles submodule...';
+    });
+
+    try {
+      // Try different possible locations for the open-bibles submodule
+      final possiblePaths = [
+        '/Users/zintan/fun-projects/bible_parser/bible_parser_flutter/open-bibles',
+        '../open-bibles',
+        '../../open-bibles',
+      ];
+
+      Directory? directory;
+      for (final path in possiblePaths) {
+        final dir = Directory(path);
+        if (await dir.exists()) {
+          directory = dir;
+          break;
+        }
+      }
+
+      if (directory == null) {
+        setState(() {
+          result = 'Error: open-bibles submodule not found';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final files = await directory
+          .list()
+          .where((entity) => entity is File && entity.path.endsWith('.xml'))
+          .map((entity) => entity.path)
+          .toList();
+
+      setState(() {
+        isLoading = false;
+      });
+
+      if (files?.isEmpty ?? true) {
+        setState(() {
+          result = 'Error: No XML files found in open-bibles submodule';
+        });
+        return;
+      }
+
+      // Sort files by name
+      files?.sort();
+
+      // Show dialog to select a file
+      final selectedFile = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Select Bible File'),
+          content: Container(
+            width: double.maxFinite,
+            height: 300,
+            child: ListView.builder(
+              itemCount: files?.length ?? 0,
+              itemBuilder: (context, index) {
+                final file = files?[index];
+                final fileName = path.basename(file ?? '');
+                return ListTile(
+                  title: Text(fileName),
+                  subtitle: Text(_determineBibleFormat(fileName)),
+                  onTap: () => Navigator.of(context).pop(file),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+
+      if (selectedFile != null) {
+        final fileName = path.basename(selectedFile);
+        setState(() {
+          selectedSubmoduleFile = selectedFile;
+          isUsingSubmodule = true;
+
+          // Determine format from file extension
+          if (fileName.contains('eng-asv')) {
+            currentFormat = BibleFormat.zefania;
+          } else if (fileName.contains('.osis.')) {
+            currentFormat = BibleFormat.osis;
+          } else if (fileName.contains('.usfx.')) {
+            currentFormat = BibleFormat.usfx;
+          } else if (fileName.contains('.zefania.')) {
+            currentFormat = BibleFormat.zefania;
+          } else {
+            // Default to OSIS if format can't be determined
+            currentFormat = BibleFormat.osis;
+          }
+        });
+
+        _loadBibleFromSubmodule(selectedFile);
+      }
+    } catch (e) {
+      setState(() {
+        result = 'Error scanning open-bibles: ${e.toString()}';
+        isLoading = false;
+      });
+    }
+  }
+
+  // Helper method to determine Bible format from filename
+  String _determineBibleFormat(String fileName) {
+    if (fileName.contains('.osis.')) {
+      return 'OSIS Format';
+    } else if (fileName.contains('.usfx.')) {
+      return 'USFX Format';
+    } else if (fileName.contains('.zefania.')) {
+      return 'Zefania Format';
+    } else {
+      return 'Unknown Format';
+    }
+  }
+
+  // Load Bible from open-bibles submodule
+  Future<void> _loadBibleFromSubmodule(String filePath) async {
+    setState(() {
+      isLoading = true;
+      result = 'Loading Bible from ${path.basename(filePath)}...';
+      isFullBible = true;
+    });
+
+    try {
+      final file = File(filePath);
+      final xmlString = await file.readAsString();
+
+      final format = currentFormat.name.toUpperCase();
+
+      setState(() {
+        result =
+            'Bible file loaded. Initializing repository with $format format...';
+      });
+
+      final stopwatch = Stopwatch()..start();
+      repository = BibleRepository.fromString(
+        xmlString: xmlString,
+        format: format,
+      );
+
+      await repository!.initialize();
+      stopwatch.stop();
+
+      books = await repository!.getBooks();
+      if (books.isNotEmpty) {
+        selectedBook = books.first;
+        await _updateAvailableChapters();
+      }
+
+      setState(() {
+        result =
+            'Bible loaded from submodule in ${stopwatch.elapsedMilliseconds}ms\n\n' +
+                'File: ${path.basename(filePath)}\n' +
+                'Format: $format\n' +
+                'Books: ${books.length}\n\n' +
+                books.map((b) => '${b.num}. ${b.title} (${b.id})').join('\n');
+      });
+    } catch (e, stackTrace) {
+      setState(() {
+        result =
+            'Error loading Bible from submodule: ${e.toString()}\n\n$stackTrace';
       });
     } finally {
       setState(() {

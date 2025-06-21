@@ -48,8 +48,8 @@ class BibleParser {
           return UsfxParser(_source);
         case 'OSIS':
           return OsisParser(_source);
-        case 'ZXBML':
-          return ZxbmlParser(_source);
+        case 'ZEFANIA':
+          return ZefaniaParser(_source);
         default:
           throw ParserUnavailableError('Parser for $format could not be loaded.');
       }
@@ -85,7 +85,7 @@ class BibleParser {
       
       if (sample.contains('<usfx') || sample.contains('<USFX')) return 'USFX';
       if (sample.contains('<osis') || sample.contains('<osisText')) return 'OSIS';
-      if (sample.contains('<zxbml') || sample.contains('<ZXBML')) return 'ZXBML';
+      if (sample.contains('<xmlbible') || sample.contains('<XMLBIBLE')) return 'ZEFANIA';
       
       throw FormatDetectionError('Could not detect Bible format');
     } catch (e) {

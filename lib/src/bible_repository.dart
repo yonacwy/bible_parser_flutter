@@ -138,14 +138,9 @@ class BibleRepository {
       
       // Insert data in batches
       await db.transaction((txn) async {
-        int bookCount = 0;
-        int verseCount = 0;
-        
         try {
           // Process books
           await for (final book in parser.books) {
-            bookCount++;
-            
             // Insert book
             await txn.insert('books', book.toMap());
             
@@ -153,7 +148,6 @@ class BibleRepository {
             if (book.verses.isNotEmpty) {
               for (final verse in book.verses) {
                 await txn.insert('verses', verse.toMap());
-                verseCount++;
               }
             }
           }

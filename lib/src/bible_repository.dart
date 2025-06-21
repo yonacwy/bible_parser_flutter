@@ -64,6 +64,7 @@ class BibleRepository {
     final dbPath = await _getDatabasePath();
     final dbFile = File(dbPath);
     
+    /*
     // For testing purposes, always return false to force database recreation
     
     // Delete existing database if it exists
@@ -72,12 +73,13 @@ class BibleRepository {
         await dbFile.delete();
       } catch (e) {
         // Silently continue if deletion fails
+        print('Failed to delete database file: $e');
       }
     }
     
     return false;
-    
-    /* Original implementation
+   */ 
+    // For production implementation
     if (!dbFile.existsSync()) {
       return false;
     }
@@ -91,8 +93,7 @@ class BibleRepository {
     } catch (e) {
       await db.close();
       return false;
-    }
-    */
+    }    
   }
   
   /// Creates the database from the XML file or string.
@@ -180,18 +181,34 @@ class BibleRepository {
     );
   }
   
+  /// Gets the database name from the XML path.
+  String _getDatabaseName(String xmlPath, String defaultName) {
+    if (xmlPath.isNotEmpty) {
+      // Get the filename without extension from xmlPath
+      final fileName = basename(xmlPath);
+      final nameWithoutExtension = fileName.split('.').first;
+      
+      // Sanitize the filename by removing improper characters
+      // Replace characters that are not alphanumeric, underscore, or hyphen with underscore
+      final sanitizedName = nameWithoutExtension.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      
+      return '$sanitizedName.db';
+    } else {
+      // Fallback for when using xmlString (no path)
+      return defaultName;
+    }
+  }
+
   /// Gets the path to the database file.
   Future<String> _getDatabasePath() async {
     try {
       // Use temporary directory for testing to avoid permission issues
       final tempDirectory = await getTemporaryDirectory();
-      final dbPath = join(tempDirectory.path, 'bible_test.db');
-      return dbPath;
+      return join(tempDirectory.path, _getDatabaseName(xmlPath, 'bible_test.db'));
     } catch (e) {
       // Fall back to documents directory
       final documentsDirectory = await getApplicationDocumentsDirectory();
-      final dbPath = join(documentsDirectory.path, 'bible.db');
-      return dbPath;
+      return join(documentsDirectory.path, _getDatabaseName(xmlPath, 'bible.db'));
     }
   }
   

@@ -1,18 +1,15 @@
 # Bible Parser Flutter [!! NOT YET PUBLISHED !!]
 
-A Flutter package for parsing Bible texts in various XML formats (USFX, OSIS, ZXBML). This package provides both direct parsing and database-backed approaches for handling Bible data in your Flutter applications. The parser is optimized for production use with proper error handling.
+A Flutter package for parsing Bible texts in various XML formats (USFX, OSIS, ZEFANIA). This package provides both direct parsing and database-backed approaches for handling Bible data in your Flutter applications. The parser is optimized for production use with proper error handling.
 
 ## Features
 
-- Parse Bible texts in multiple formats (USFX, OSIS, ZXBML)
+- Parse Bible texts in multiple formats (USFX, OSIS, ZEFANIA)
 - Automatic format detection
 - Memory-efficient SAX-style XML parsing using proper async streams
 - Database caching for improved performance
 - Search functionality for verses
 - Retrieve verses by book and chapter
-- Production-ready with proper error handling
-- Strong typing with null safety
-- Async/await and Stream support
 
 ## Getting Started
 
@@ -34,7 +31,7 @@ flutter pub get
 ### Prerequisites
 
 - Flutter SDK
-- A Bible XML file in one of the supported formats (USFX, OSIS, ZXBML)
+- A Bible XML file in one of the supported formats (USFX, OSIS, ZEFANIA)
 
 ## Usage
 
@@ -130,11 +127,9 @@ Future<void> useBibleRepository() async {
 
 See the `/example` folder for a complete working example of both approaches. The example app demonstrates:
 
-- Parsing Bible files in OSIS, USFX, and ZXBML formats
+- Parsing Bible files in OSIS and USFX formats
 - Database initialization and querying
-- Searching for verses containing specific text
 - Browsing verses by book and chapter selection
-- Displaying formatted Bible text with proper scrolling
 
 ## License
 

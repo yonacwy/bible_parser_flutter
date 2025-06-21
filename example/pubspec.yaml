@@ -22,3 +22,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/open-bibles/eng-asv.osis.xml
+    - assets/open-bibles/eng-kjv.osis.xml
+    - assets/open-bibles/eng-web.usfx.xml

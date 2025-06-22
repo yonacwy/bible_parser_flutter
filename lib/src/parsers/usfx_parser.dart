@@ -279,6 +279,12 @@ class UsfxParser extends BaseParser {
               text: '',
               bookId: currentBookId,
             );
+          } // Closing verses. Some versions use <ve/> instead of </v>
+          else if (event.isSelfClosing &&
+              event.name == 've' &&
+              currentVerse != null) {
+            yield currentVerse;
+            currentVerse = null;
           }
         } else if (event is XmlEndElementEvent) {
           if (event.name == 'v' && currentVerse != null) {

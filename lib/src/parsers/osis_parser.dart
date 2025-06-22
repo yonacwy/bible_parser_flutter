@@ -136,8 +136,10 @@ class OsisParser extends BaseParser {
                 title: bookName,
               );
             }
-          // Some osis xml version use <chapter eID=""/> as end tags. Without the explicit check for eID here, those tags will be wrongly marked as start tags.
-          } else if (event.name == 'chapter' && currentBook != null && !event.attributes.any((attr) => attr.name == 'eID')) {
+            // Some osis xml version use <chapter eID=""/> as end tags. Without the explicit check for eID here, those tags will be wrongly marked as start tags.
+          } else if (event.name == 'chapter' &&
+              currentBook != null &&
+              !event.attributes.any((attr) => attr.name == 'eID')) {
             // Find chapter number from attributes
             String chapterNumStr = '1';
             String attrName = '';
@@ -207,13 +209,20 @@ class OsisParser extends BaseParser {
               bookId: currentBook.id,
             );
             // Some osis xml version use <chapter eID=""/> as end tags for chapters. This catches such cases..
-          } else if(event.name == 'chapter' && currentBook != null && currentChapter != null && event.attributes.any((attr) => attr.name == 'eID')){
+          } else if (event.name == 'chapter' &&
+              currentBook != null &&
+              currentChapter != null &&
+              event.attributes.any((attr) => attr.name == 'eID')) {
             // End of chapter - add to current book
             currentBook.addChapter(currentChapter);
             currentChapter = null;
           }
           // Some osis xml version use <verse eID=""/> as end tags for verses. This catches such cases.
-          else if(event.name == 'verse' && currentBook != null && currentChapter != null && currentVerse != null && event.attributes.any((attr) => attr.name == 'eID')){
+          else if (event.name == 'verse' &&
+              currentBook != null &&
+              currentChapter != null &&
+              currentVerse != null &&
+              event.attributes.any((attr) => attr.name == 'eID')) {
             // End of verse - add to current chapter
             currentChapter.addVerse(currentVerse);
             currentVerse = null;
@@ -265,7 +274,6 @@ class OsisParser extends BaseParser {
     int? currentChapterNum;
     Verse? currentVerse;
 
-
     try {
       // Parse XML using events for memory efficiency
       final events = await parseEvents(content).toList();
@@ -297,7 +305,10 @@ class OsisParser extends BaseParser {
             if (osisID.isNotEmpty) {
               currentBookId = osisID.toLowerCase();
             }
-          } else if (event.name == 'chapter' && currentBookId != null) {
+            // Some osis xml version use <chapter eID=""/> as end tags. Without the explicit check for eID here, those tags will be wrongly marked as start tags.
+          } else if (event.name == 'chapter' &&
+              currentBookId != null &&
+              !event.attributes.any((attr) => attr.name == 'eID')) {
             // Find chapter number from attributes
             String chapterNumStr = '1';
             String attrName = '';
@@ -326,9 +337,11 @@ class OsisParser extends BaseParser {
             }
 
             currentChapterNum = int.tryParse(chapterNumStr) ?? 1;
+            // Some osis xml version use <verse eID=""/> as end tags. Without the explicit check for eID here, those tags will be wrongly marked as start tags.
           } else if (event.name == 'verse' &&
               currentBookId != null &&
-              currentChapterNum != null) {
+              currentChapterNum != null &&
+              !event.attributes.any((attr) => attr.name == 'eID')) {
             // Find verse attributes
             String verseOsisID = '';
             String verseNumStr = '1';
@@ -357,6 +370,14 @@ class OsisParser extends BaseParser {
               text: '',
               bookId: currentBookId,
             );
+          }
+          // Some osis xml version use <verse eID=""/> as end tags for verses. This catches such cases.
+          else if (event.name == 'verse' &&
+              currentVerse != null &&
+              event.attributes.any((attr) => attr.name == 'eID')) {
+            // End of verse - add to current chapter
+            yield currentVerse;
+            currentVerse = null;
           }
         } else if (event is XmlEndElementEvent) {
           if (event.name == 'verse' && currentVerse != null) {
@@ -413,7 +434,6 @@ class OsisParser extends BaseParser {
         final events = XmlEventDecoder().convert(content);
         return Stream.fromIterable(events);
       } catch (xmlError) {
-
         // Try a fallback approach for web compatibility
         // Remove XML namespace declarations which can cause issues in some environments
         final cleanedContent =

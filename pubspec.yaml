@@ -6,7 +6,7 @@ repository: https://github.com/Omarzintan/bible_parser_flutter
 issue_tracker: https://github.com/Omarzintan/bible_parser_flutter/issues
 
 environment:
-  sdk: ^3.7.0-75.0.dev
+  sdk: '>=3.0.0 <4.0.0'
   flutter: ">=1.17.0"
 
 dependencies:

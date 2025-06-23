@@ -1,4 +1,4 @@
-# Bible Parser Flutter [!! NOT YET PUBLISHED !!]
+# Bible Parser Flutter
 
 A Flutter package for parsing Bible texts in various XML formats (USFX, OSIS, ZEFANIA). This package provides both direct parsing and database-backed approaches for handling Bible data in your Flutter applications. The parser is optimized for production use with proper error handling.
 

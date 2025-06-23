@@ -139,3 +139,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 Inspired by the Ruby [bible_parser](https://github.com/seven1m/bible_parser) library.
+
+Bible XML files in the example are from the [open-bibles](https://github.com/seven1m/open-bibles) GitHub repository.

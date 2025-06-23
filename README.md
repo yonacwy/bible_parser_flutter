@@ -7,6 +7,7 @@ A Flutter package for parsing Bible texts in various XML formats (USFX, OSIS, ZE
 - Parse Bible texts in multiple formats (USFX, OSIS, ZEFANIA)
 - Automatic format detection
 - Memory-efficient SAX-style XML parsing using proper async streams
+- **Note:** This package has only been tested to work with the XML files under example/assets/open-bibles. Users are welcome to try the parser with other XML files and create a GitHub issue if they encounter any errors.
 - Database caching for improved performance
 - Search functionality for verses
 - Retrieve verses by book and chapter

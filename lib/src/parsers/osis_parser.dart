@@ -250,14 +250,17 @@ class OsisParser extends BaseParser {
             currentVerse = null;
           }
         } else if (event is XmlTextEvent && currentVerse != null) {
-          // Append text to current verse
-          final newText = currentVerse.text + event.value.trim();
-          currentVerse = Verse(
-            num: currentVerse.num,
-            chapterNum: currentVerse.chapterNum,
-            text: newText,
-            bookId: currentVerse.bookId,
-          );
+          final trimmedText = event.value.trim();
+          if (trimmedText.isNotEmpty) {
+            // Append text to current verse
+            final newText = [currentVerse.text, trimmedText].join(' ');
+            currentVerse = Verse(
+              num: currentVerse.num,
+              chapterNum: currentVerse.chapterNum,
+              text: newText,
+              bookId: currentVerse.bookId,
+            );
+          }
         }
       }
     } catch (e, stackTrace) {
@@ -389,7 +392,7 @@ class OsisParser extends BaseParser {
           final trimmedText = event.value.trim();
           if (trimmedText.isNotEmpty) {
             // Append text to current verse
-            final newText = currentVerse.text + trimmedText;
+            final newText = [currentVerse.text, trimmedText].join(' ');
             currentVerse = Verse(
               num: currentVerse.num,
               chapterNum: currentVerse.chapterNum,

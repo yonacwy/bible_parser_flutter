@@ -442,6 +442,7 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
       setState(() {
         result = 'Bible loaded from assets in ${stopwatch.elapsedMilliseconds}ms\n\n'
             'File: $fileName\n'
+            'Asset Path: $assetPath\n'
             'Format: $format\n'
             'Books: ${books.length}\n\n'
             '${books.map((b) => '${b.num}. ${b.title} (${b.id})').join('\n')}';

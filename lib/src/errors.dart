@@ -10,15 +10,15 @@ class BibleParserException implements Exception {
 
 /// Thrown when a parser for a specific format could not be loaded.
 class ParserUnavailableError extends BibleParserException {
-  ParserUnavailableError(String message) : super(message);
+  ParserUnavailableError(super.message);
 }
 
 /// Thrown when the format of a Bible file could not be detected.
 class FormatDetectionError extends BibleParserException {
-  FormatDetectionError(String message) : super(message);
+  FormatDetectionError(super.message);
 }
 
 /// Thrown when there's an error during the parsing process.
 class ParseError extends BibleParserException {
-  ParseError(String message) : super(message);
+  ParseError(super.message);
 }

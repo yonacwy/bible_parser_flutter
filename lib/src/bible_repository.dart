@@ -63,7 +63,6 @@ class BibleRepository {
   /// Checks if the database is initialized.
   Future<bool> _isDatabaseInitialized({String? databaseName}) async {
     final dbPath = await _getDatabasePath(databaseName: databaseName);
-    final dbFile = File(dbPath);
 
     /*
     // For testing purposes, always return false to force database recreation

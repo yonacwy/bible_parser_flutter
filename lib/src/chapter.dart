@@ -44,5 +44,5 @@ class Chapter {
   int get verseCount => _verses.length;
   
   @override
-  String toString() => '$bookId $num (${verseCount} verses)';
+  String toString() => '$bookId $num ($verseCount verses)';
 }

@@ -1,5 +1,3 @@
-library bible_parser_flutter;
-
 export 'src/bible_parser.dart';
 export 'src/book.dart';
 export 'src/chapter.dart';

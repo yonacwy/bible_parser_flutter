@@ -80,7 +80,7 @@ class OsisParser extends BaseParser {
   };
 
   /// Creates a new OSIS parser.
-  OsisParser(dynamic source) : super(source);
+  OsisParser(super.source);
 
   @override
   bool checkFormat(String content) {

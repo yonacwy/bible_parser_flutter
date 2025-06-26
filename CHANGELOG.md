@@ -1,3 +1,20 @@
+## 0.1.0+2 - Bug fix and documentation updates
+
+### Bug Fixes
+* Fixed verse text concatenation with proper space handling and empty text checks
+
+### Documentation
+N/A
+
+## 0.1.0+1 - Bug fix and documentation updates
+
+### Bug Fixes
+N/A
+
+### Documentation
+* Added note about tested XML file compatibility in README
+* Removed unpublished status from README title
+
 ## 0.1.0 - Initial Release
 
 ### Features

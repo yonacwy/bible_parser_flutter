@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'bible_parser.dart';
 import 'book.dart';
@@ -12,7 +11,7 @@ import 'verse.dart';
 /// Repository for accessing Bible data with database caching.
 class BibleRepository {
   /// The database instance.
-  late Database _database;
+  Database? _database;
 
   /// The path to the XML file.
   final String xmlPath;
@@ -40,19 +39,27 @@ class BibleRepository {
   /// Initializes the repository.
   ///
   /// This will create the database if it doesn't exist, or open it if it does.
-  Future<bool> initialize({String? databaseName}) async {
+  Future<bool> initialize(String databaseName) async {
     try {
+      // Close any existing database connection
+      try {
+        if (_database != null) {
+          await _database!.close();
+        }
+      } catch (e) {
+        // Ignore errors when closing
+      }
+      
       // Check if database exists and is current version
-      final dbInitialized =
-          await _isDatabaseInitialized(databaseName: databaseName);
+      final dbInitialized = await _isDatabaseInitialized(databaseName);
 
       if (!dbInitialized) {
         // Create database from XML
-        await _createDatabaseFromXml(databaseName: databaseName);
+        await _createDatabaseFromXml(databaseName);
+      } else {
+        // Open database connection
+        _database = await _openDatabase(databaseName);
       }
-
-      // Open database connection
-      _database = await _openDatabase(databaseName: databaseName);
 
       return true;
     } catch (e, stackTrace) {
@@ -61,43 +68,19 @@ class BibleRepository {
   }
 
   /// Checks if the database is initialized.
-  Future<bool> _isDatabaseInitialized({String? databaseName}) async {
-    final dbPath = await _getDatabasePath(databaseName: databaseName);
+  Future<bool> _isDatabaseInitialized(String databaseName) async {
+    final dbPath = await _getDatabasePath(databaseName);
 
-    /*
-    // For testing purposes, always return false to force database recreation
-    
-    // Delete existing database if it exists
-    if (dbFile.existsSync()) {
-      try {
-        await dbFile.delete();
-      } catch (e) {
-        // Silently continue if deletion fails
-        print('Failed to delete database file: $e');
-      }
-    }
-    
-    return false;
-   */
-    // For production implementation
-    if (!await databaseFactory.databaseExists(dbPath)) {
+    final dbExists = await databaseFactory.databaseExists(dbPath);
+    if (!dbExists) {
       return false;
     }
+    return true;
 
-    // Check if database is current version
-    final db = await openDatabase(dbPath);
-    try {
-      final version = await db.getVersion();
-      await db.close();
-      return version == 1;
-    } catch (e) {
-      await db.close();
-      return false;
-    }
   }
 
   /// Creates the database from the XML file or string.
-  Future<void> _createDatabaseFromXml({String? databaseName}) async {
+  Future<void> _createDatabaseFromXml(String databaseName) async {
     // Parse XML from file or string
     final BibleParser parser;
     if (xmlString != null) {
@@ -109,47 +92,50 @@ class BibleRepository {
     }
 
     // Create database schema
-    final db = await _openDatabase();
+    final db = await _openDatabase(databaseName);
+    _database = db; // Set the database instance
 
     try {
-      // Create tables
-      await db.execute('''
-        CREATE TABLE books (
-          id TEXT PRIMARY KEY,
-          num INTEGER,
-          title TEXT
-        )
-      ''');
-
-      await db.execute('''
-        CREATE TABLE verses (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          book_id TEXT,
-          chapter_num INTEGER,
-          verse_num INTEGER,
-          text TEXT,
-          FOREIGN KEY (book_id) REFERENCES books (id)
-        )
-      ''');
-
-      // Create indexes for fast lookup
-      await db.execute(
-          'CREATE INDEX idx_verses_lookup ON verses (book_id, chapter_num, verse_num)');
-      await db.execute('CREATE INDEX idx_verses_search ON verses (text)');
-
-      // Insert data in batches
+      // Insert data in batches using a single transaction for better performance
       await db.transaction((txn) async {
         try {
           // Process books
+          final books = <Map<String, dynamic>>[];
+          final verses = <Map<String, dynamic>>[];
+          
+          // First collect all data
           await for (final book in parser.books) {
-            // Insert book
-            await txn.insert('books', book.toMap());
-
-            // Process verses for this book
+            books.add(book.toMap());
             if (book.verses.isNotEmpty) {
               for (final verse in book.verses) {
-                await txn.insert('verses', verse.toMap());
+                verses.add(verse.toMap());
               }
+            }
+          }
+          
+          // Then batch insert books
+          for (final book in books) {
+            try {
+              await txn.insert(
+                'books', 
+                book,
+                conflictAlgorithm: ConflictAlgorithm.ignore, // Skip if already exists
+              );
+            } catch (e) {
+              // Continue with next book
+            }
+          }
+          
+          // Then batch insert verses
+          for (final verse in verses) {
+            try {
+              await txn.insert(
+                'verses', 
+                verse,
+                conflictAlgorithm: ConflictAlgorithm.ignore, // Skip if already exists
+              );
+            } catch (e) {
+              // Continue with next verse
             }
           }
         } catch (e, stackTrace) {
@@ -166,60 +152,64 @@ class BibleRepository {
   }
 
   /// Opens the database.
-  Future<Database> _openDatabase({String? databaseName}) async {
+  Future<Database> _openDatabase(String databaseName) async {
+    final dbPath = await _getDatabasePath(databaseName);
+    
     return openDatabase(
-      await _getDatabasePath(databaseName: databaseName),
+      dbPath,
       version: 1,
       onCreate: (db, version) async {
-        // This is handled by _createDatabaseFromXml
+        // Create tables
+        await db.execute('''
+        CREATE TABLE IF NOT EXISTS books (
+          id TEXT PRIMARY KEY,
+          num INTEGER,
+          title TEXT
+        )
+      ''');
+
+        await db.execute('''
+        CREATE TABLE IF NOT EXISTS verses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          book_id TEXT,
+          chapter_num INTEGER,
+          verse_num INTEGER,
+          text TEXT,
+          FOREIGN KEY (book_id) REFERENCES books (id)
+        )
+      ''');
+
+        // Create indexes for fast lookup
+        await db.execute(
+            'CREATE INDEX IF NOT EXISTS idx_verses_lookup ON verses (book_id, chapter_num, verse_num)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_verses_search ON verses (text)');
       },
     );
   }
 
-  /// Gets the database name from the XML path.
-  String _getDatabaseName(String xmlPath, String defaultName) {
-    if (xmlPath.isNotEmpty) {
-      // Get the filename without extension from xmlPath
-      final fileName = basename(xmlPath);
-      final nameWithoutExtension = fileName.split('.').first;
-
-      // Sanitize the filename by removing improper characters
-      // Replace characters that are not alphanumeric, underscore, or hyphen with underscore
-      final sanitizedName =
-          nameWithoutExtension.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-
-      return '$sanitizedName.db';
-    } else {
-      // Fallback for when using xmlString (no path)
-      return defaultName;
-    }
+  /// Gets the path to the database file.
+  Future<String> _getDatabasePath(String databaseName) async {
+    return join(await getDatabasesPath(), databaseName);
   }
 
-  /// Gets the path to the database file.
-  Future<String> _getDatabasePath({String? databaseName}) async {
-    // try {
-    //   // Use temporary directory for testing to avoid permission issues
-    //   final tempDirectory = await getTemporaryDirectory();
-    //   return join(tempDirectory.path, _getDatabaseName(xmlPath, 'bible_test.db'));
-    // } catch (e) {
-    //   // Fall back to documents directory
-    //   final documentsDirectory = await getApplicationDocumentsDirectory();
-    //   return join(documentsDirectory.path, _getDatabaseName(xmlPath, 'bible.db'));
-    // }
-    final documentsDirectory = await getApplicationDocumentsDirectory();
-    return join(documentsDirectory.path,
-        databaseName ?? _getDatabaseName(xmlPath, 'bible.db'));
+  /// Ensures database is initialized before use
+  void _ensureDatabaseInitialized() {
+    if (_database == null) {
+      throw Exception('Database not initialized. Call initialize() first.');
+    }
   }
 
   /// Gets all books in the Bible.
   Future<List<Book>> getBooks() async {
-    final maps = await _database.query('books', orderBy: 'num');
+    _ensureDatabaseInitialized();
+    final maps = await _database!.query('books', orderBy: 'num');
     return maps.map((map) => Book.fromMap(map)).toList();
   }
 
   /// Gets the number of chapters in a book.
   Future<int> getChapterCount(String bookId) async {
-    final result = await _database.rawQuery(
+    _ensureDatabaseInitialized();
+    final result = await _database!.rawQuery(
         'SELECT COUNT(DISTINCT chapter_num) as count FROM verses WHERE book_id = ?',
         [bookId]);
     return result.first['count'] as int;
@@ -227,7 +217,8 @@ class BibleRepository {
 
   /// Gets all verses in a chapter.
   Future<List<Verse>> getVerses(String bookId, int chapterNum) async {
-    final maps = await _database.query('verses',
+    _ensureDatabaseInitialized();
+    final maps = await _database!.query('verses',
         where: 'book_id = ? AND chapter_num = ?',
         whereArgs: [bookId, chapterNum],
         orderBy: 'verse_num');
@@ -236,14 +227,16 @@ class BibleRepository {
 
   /// Searches for verses containing the given query.
   Future<List<Verse>> searchVerses(String query) async {
-    final maps = await _database.query('verses',
+    _ensureDatabaseInitialized();
+    final maps = await _database!.query('verses',
         where: 'text LIKE ?', whereArgs: ['%$query%'], limit: 100);
     return maps.map((map) => Verse.fromMap(map)).toList();
   }
 
   /// Gets a specific verse.
   Future<Verse?> getVerse(String bookId, int chapterNum, int verseNum) async {
-    final maps = await _database.query('verses',
+    _ensureDatabaseInitialized();
+    final maps = await _database!.query('verses',
         where: 'book_id = ? AND chapter_num = ? AND verse_num = ?',
         whereArgs: [bookId, chapterNum, verseNum],
         limit: 1);
@@ -257,6 +250,9 @@ class BibleRepository {
 
   /// Closes the database connection.
   Future<void> close() async {
-    await _database.close();
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
   }
 }

@@ -1,3 +1,15 @@
+## 0.1.0+3 - Bug fixes and performance improvements
+
+### Bug Fixes
+* Fixed USFX parser to properly handle chapter endings and ensure all chapters are added to books
+* Fixed database handling in BibleRepository with proper null safety
+
+### Improvements
+* Enhanced BibleRepository with better database initialization and connection management
+* Improved database operations with proper transaction handling and batch processing
+* Added explicit database naming for better multi-Bible support
+* Removed unused code and dependencies
+
 ## 0.1.0+2 - Bug fix and documentation updates
 
 ### Bug Fixes

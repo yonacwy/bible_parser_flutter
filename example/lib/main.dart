@@ -290,20 +290,20 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
 
     try {
       // Load the manifest to find Bible files in assets
-      final manifestContent = await DefaultAssetBundle.of(context)
-          .loadString('AssetManifest.json');
+      final manifestContent =
+          await DefaultAssetBundle.of(context).loadString('AssetManifest.json');
       final Map<String, dynamic> manifestMap = json.decode(manifestContent);
-      
+
       // Filter for XML files in open-bibles that match our criteria
       final files = manifestMap.keys
-          .where((String key) => 
-              key.startsWith('assets/open-bibles/') && 
+          .where((String key) =>
+              key.startsWith('assets/open-bibles/') &&
               key.endsWith('.xml') &&
-              (key.contains('eng-asv') || 
-               key.contains('eng-kjv') || 
-               key.contains('eng-web')))
+              (key.contains('eng-asv') ||
+                  key.contains('eng-kjv') ||
+                  key.contains('eng-web')))
           .toList();
-          
+
       if (files.isEmpty) {
         setState(() {
           result = 'Error: No Bible files found in assets';
@@ -311,7 +311,7 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
         });
         return;
       }
-      
+
       setState(() {
         result = 'Found ${files.length} Bible files in assets';
       });
@@ -367,7 +367,7 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
         });
         return;
       }
-      
+
       // Process the selected file
       final fileName = path.basename(selectedFile);
       setState(() {
@@ -411,28 +411,32 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
     try {
       final stopwatch = Stopwatch()..start();
       final fileName = path.basename(assetPath);
-      
+
       // Read the file content from assets
-      final xmlString = await DefaultAssetBundle.of(context).loadString(assetPath);
-      
+      final xmlString =
+          await DefaultAssetBundle.of(context).loadString(assetPath);
+
       final format = currentFormat.name.toUpperCase();
-      
+
       setState(() {
-        result = 'Bible file loaded. Initializing repository with $format format...';
+        result =
+            'Bible file loaded. Initializing repository with $format format...';
       });
-      
+
       // Initialize the repository with the XML string
       repository = BibleRepository.fromString(
         xmlString: xmlString,
         format: format,
       );
-      
-      await repository!.initialize();
+
+      final databaseName = '${assetPath.split('/').last.split('.').first}.db';
+      debugPrint("Database name: $databaseName");
+      await repository!.initialize(databaseName);
       stopwatch.stop();
 
       // Get available books
       books = await repository!.getBooks();
-      
+
       // Update UI with first book selected
       if (books.isNotEmpty) {
         selectedBook = books.first;
@@ -440,7 +444,8 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
       }
 
       setState(() {
-        result = 'Bible loaded from assets in ${stopwatch.elapsedMilliseconds}ms\n\n'
+        result =
+            'Bible loaded from assets in ${stopwatch.elapsedMilliseconds}ms\n\n'
             'File: $fileName\n'
             'Asset Path: $assetPath\n'
             'Format: $format\n'

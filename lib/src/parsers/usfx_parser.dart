@@ -184,8 +184,10 @@ class UsfxParser extends BaseParser {
           }
         } else if (event is XmlEndElementEvent) {
           if (event.name == 'book' && currentBook != null) {
-            if (currentChapter?.num == 1) {
-              currentBook.addChapter(currentChapter!);
+            // Add the last chapter if it exists. Since we don't have end tags for chapters
+            // we need to add the last chapter manually
+            if (currentChapter != null) {
+              currentBook.addChapter(currentChapter);
             }
             yield currentBook;
             currentBook = null;

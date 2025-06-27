@@ -121,10 +121,11 @@ class _BibleParserExampleScreenState extends State<BibleParserExampleScreen> {
     try {
       // Create a repository
       repository = BibleRepository(xmlPath: xmlPath);
+      final databaseName = '${xmlPath.split('/').last.split('.').first}.db';
       
       // Initialize the database (this will parse the XML and store it in the database)
       final stopwatch = Stopwatch()..start();
-      await repository!.initialize();
+      await repository!.initialize(databaseName);
       stopwatch.stop();
       
       // Get all books

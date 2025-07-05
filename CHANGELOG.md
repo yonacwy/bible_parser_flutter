@@ -1,3 +1,9 @@
+## 0.1.0+4 - Bug Fixes in USFX parser
+
+### Bug Fixes
+* Fixed handling of footnotes and cross-references in USFX parser
+
+
 ## 0.1.0+3 - Bug fixes and performance improvements
 
 ### Bug Fixes

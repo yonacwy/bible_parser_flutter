@@ -20,7 +20,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  bible_parser_flutter: ^0.0.1
+  bible_parser_flutter: ^0.1.0
 ```
 
 Then run:
@@ -45,8 +45,13 @@ import 'dart:io';
 import 'package:bible_parser_flutter/bible_parser_flutter.dart';
 
 Future<void> parseBible() async {
-  // Create a parser with automatic format detection
-  final parser = BibleParser(File('path/to/bible.xml'));
+   // Load the XML content from assets
+   final xmlString =
+       await DefaultAssetBundle.of(context).loadString(xmlPath);
+
+   // Create the original parser with the XML string
+   final parser = BibleParser.fromString(xmlString,
+       format: currentFormat.name.toUpperCase());
   
   // Access books
   await for (final book in parser.books) {
@@ -76,11 +81,14 @@ import 'package:bible_parser_flutter/bible_parser_flutter.dart';
 
 Future<void> useBibleRepository() async {
   // Create a repository
-  final repository = BibleRepository(xmlPath: 'path/to/bible.xml');
+  final repository = BibleRepository.fromString(
+    xmlString: 'path/to/bible.xml',
+    format: 'USFX',
+  );
   
   // Initialize the database (parses XML and stores in SQLite)
   // This only needs to be done once, typically on first app launch
-  await repository.initialize();
+  await repository.initialize('some_database_name.db');
   
   // Get all books
   final books = await repository.getBooks();

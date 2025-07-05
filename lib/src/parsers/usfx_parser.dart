@@ -96,6 +96,12 @@ class UsfxParser extends BaseParser {
     Book? currentBook;
     Chapter? currentChapter;
     Verse? currentVerse;
+    // True when we are inside a <f> tag. These tags are used for
+    // footnotes. We skip them for now.
+    bool insideFTag = false;
+    // True when we are inside a <x> tag. These tags are used for
+    // cross-references. We skip them for now.
+    bool insideXTag = false;
 
     // Parse XML using events for memory efficiency
     try {
@@ -181,6 +187,16 @@ class UsfxParser extends BaseParser {
               currentVerse != null) {
             currentChapter.addVerse(currentVerse);
             currentVerse = null;
+          } else if (event.name == 'f' &&
+              currentBook != null &&
+              currentVerse != null) {
+            // We are inside a footnote tag.
+            insideFTag = true;
+          } else if (event.name == 'x' &&
+              currentBook != null &&
+              currentVerse != null) {
+            // We are inside a cross-reference tag.
+            insideXTag = true;
           }
         } else if (event is XmlEndElementEvent) {
           if (event.name == 'book' && currentBook != null) {
@@ -203,18 +219,28 @@ class UsfxParser extends BaseParser {
               currentVerse != null) {
             currentChapter.addVerse(currentVerse);
             currentVerse = null;
+          } else if (event.name == 'f') {
+            // End of footnote tag
+            insideFTag = false;
+          } else if (event.name == 'x') {
+            // End of cross-reference tag
+            insideXTag = false;
           }
         } else if (event is XmlTextEvent && currentVerse != null) {
-          final trimmedText = event.value.trim();
-          if (trimmedText.isNotEmpty) {
-            // Append text to current verse
-            final newText = [currentVerse.text, trimmedText].join(' ');
-            currentVerse = Verse(
-              num: currentVerse.num,
-              chapterNum: currentVerse.chapterNum,
-              text: newText,
-              bookId: currentVerse.bookId,
-            );
+          if (insideFTag || insideXTag) {
+            continue;
+          } else {
+            final trimmedText = event.value.trim();
+            if (trimmedText.isNotEmpty) {
+              // Append text to current verse
+              final newText = [currentVerse.text, trimmedText].join(' ');
+              currentVerse = Verse(
+                num: currentVerse.num,
+                chapterNum: currentVerse.chapterNum,
+                text: newText,
+                bookId: currentVerse.bookId,
+              );
+            }
           }
         }
       }

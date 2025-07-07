@@ -232,8 +232,17 @@ class UsfxParser extends BaseParser {
           } else {
             final trimmedText = event.value.trim();
             if (trimmedText.isNotEmpty) {
-              // Append text to current verse
-              final newText = [currentVerse.text, trimmedText].join(' ');
+              // Only add a space if the previous text is not empty and doesn't end with a space
+              String newText;
+              if (currentVerse.text.isEmpty) {
+                newText = trimmedText;
+              } else if (trimmedText.startsWith(RegExp(r'[.,;:!?]'))) {
+                newText = currentVerse.text + trimmedText;
+              } else {
+                newText = currentVerse.text + ' ' + trimmedText;
+              }
+              // Remove any space before punctuation
+              newText = newText.replaceAll(RegExp(r'\s+([.,;:!?])'), r'\1');
               currentVerse = Verse(
                 num: currentVerse.num,
                 chapterNum: currentVerse.chapterNum,
@@ -326,7 +335,17 @@ class UsfxParser extends BaseParser {
           } else {
             final trimmedText = event.value.trim();
             if (trimmedText.isNotEmpty) {
-              final newText = [currentVerse.text, trimmedText].join(' ');
+              // Only add a space if the previous text is not empty and doesn't end with a space
+              String newText;
+              if (currentVerse.text.isEmpty) {
+                newText = trimmedText;
+              } else if (trimmedText.startsWith(RegExp(r'[.,;:!?]'))) {
+                newText = currentVerse.text + trimmedText;
+              } else {
+                newText = currentVerse.text + ' ' + trimmedText;
+              }
+              // Remove any space before punctuation
+              newText = newText.replaceAll(RegExp(r'\s+([.,;:!?])'), r'\1');
               currentVerse = Verse(
                 num: currentVerse.num,
                 chapterNum: currentVerse.chapterNum,
